@@ -29,7 +29,8 @@ public class ApplicationConfig extends Application {
      * If required, comment out calling this method in getClasses().
      */
     private void addRestResourceClasses(Set<Class<?>> resources) {
-        resources.add(edu.neu.zhiyao.assignment2.server.SkierSever.class);
+        resources.add(edu.neu.zhiyao.assignment2.server.controller.RFIDLiftController.class);
+        resources.add(edu.neu.zhiyao.assignment2.server.controller.SkierDailyStatController.class);
         resources.add(org.glassfish.jersey.server.wadl.internal.WadlResource.class);
     }
     

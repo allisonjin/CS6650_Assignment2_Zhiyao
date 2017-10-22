@@ -6,6 +6,7 @@
 package edu.neu.zhiyao.assignment2.client;
 
 import edu.neu.zhiyao.assignment2.client.entity.RFIDLiftData;
+import edu.neu.zhiyao.assignment2.client.entity.SkierDailyStat;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -27,10 +28,12 @@ import java.util.logging.Logger;
 public class SkierClientMain {
 
     private final int nThreads;
+    private final int dayNum;
     private final SkierClient client;
 
-    public SkierClientMain(int nThreads) {
+    public SkierClientMain(int nThreads, int dayNum) {
         this.nThreads = nThreads;
+        this.dayNum = dayNum;
         client = new SkierClient();
     }
 
@@ -41,6 +44,7 @@ public class SkierClientMain {
             File file = new File(classLoader.getResource(fileName).getFile());
             FileReader fileReader = new FileReader(file);
             BufferedReader bufferedReader = new BufferedReader(fileReader);
+            System.out.println("Loading CSV file...");
             String line;
             bufferedReader.readLine();
             while ((line = bufferedReader.readLine()) != null) {
@@ -54,6 +58,7 @@ public class SkierClientMain {
                         skierId, liftId, time);
                 dataList.add(data);
             }
+            System.out.println("Load succeeded!");
             fileReader.close();
             bufferedReader.close();
         } catch (FileNotFoundException ex) {
@@ -80,8 +85,7 @@ public class SkierClientMain {
             @Override
             public void run() {
                 int index;
-                while ((index = counter.reqIncrement()) < rfidLiftDataList.size()) {
-                    System.out.println(index);
+                while ((index = counter.reqIncrement()) < 10000) {
                     RFIDLiftData data = rfidLiftDataList.get(index);
                     long reqStartTime = System.currentTimeMillis();
                     client.postRFIDLiftData(data);
@@ -91,6 +95,7 @@ public class SkierClientMain {
                 }
             }
         });
+        client.postEndOfData(dayNum);
         return counter.getLatencyTimestamp();
     }
 
@@ -117,17 +122,19 @@ public class SkierClientMain {
             Logger.getLogger(SkierClientMain.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-
+    
     public static void main(String[] args) {
-        int nThreads = 100;
+        int nThreads = 1;
+        int dayNum = 1;
         if (args.length != 0) {
             try {
                 nThreads = Integer.parseInt(args[0]);
+                dayNum = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input!");
             }
         }
-        SkierClientMain instance = new SkierClientMain(nThreads);
+        SkierClientMain instance = new SkierClientMain(nThreads, dayNum);
         String csvFileName = "BSDSAssignment2Day1.csv";
         List<RFIDLiftData> dataList = instance.readCSV(csvFileName);
         Map<Long, List<Double>> latencyTimestamp = instance.runPostTask(dataList);
