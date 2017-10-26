@@ -5,15 +5,18 @@
  */
 package edu.neu.zhiyao.assignment2.server.dao;
 
-import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndex;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
+import com.amazonaws.services.dynamodbv2.model.Projection;
+import com.amazonaws.services.dynamodbv2.model.ProjectionType;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,30 +25,36 @@ import java.util.List;
  *
  * @author allisonjin
  */
-public class SkierCreateTable {
+public class ResetTable {
 
-    private static final String RFID_LIFT_TABLE = "RFIDLift";
+    private static final String RFID_LIFT_TABLE = "RFIDLiftData";
     private static final String SKIER_DAILY_STAT_TABLE = "SkierDailyStat";
     private static final String RFID_LIFT_ID = "Id";
     private static final String SKIER_ID = "SkierId";
     private static final String DAY_NUM = "DayNum";
+    private static final String SKIER_DAY_NUM_INDEX = "SkierId-DayNum-index";
     
+//    private static AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
+//                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000", "us-west-2"))
+//                .build();
     private static AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
-                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000", "us-west-2"))
+                .withRegion(Regions.US_WEST_1)
+//                .withCredentials(new ProfileCredentialsProvider("myProfile"))
                 .build();
     private static DynamoDB dynamoDB = new DynamoDB(client);
     
     public static void main(String[] args) {
         
         try {
-            deleteTable(RFID_LIFT_TABLE);
-            deleteTable(SKIER_DAILY_STAT_TABLE);
+//            deleteTable(RFID_LIFT_TABLE);
+//            deleteTable(SKIER_DAILY_STAT_TABLE);
             
-            createTable(RFID_LIFT_TABLE, 10L, 5L, RFID_LIFT_ID, "S", SKIER_ID, "N");
-            createTable(SKIER_DAILY_STAT_TABLE, 10L, 5L, SKIER_ID, "N", DAY_NUM, "N");
+//            createTable(RFID_LIFT_TABLE, 5L, 5L, RFID_LIFT_ID, "S", SKIER_ID, "N");
+//            createTable(SKIER_DAILY_STAT_TABLE, 5L, 5L, SKIER_ID, "N", DAY_NUM, "N");
             
 //            SkierDailyStatService service = new SkierDailyStatService();
 //            service.createNewStats(1);
+//            createTable("test", 5L, 5L, "pk", "S");
             
         } catch (Exception e) {
             System.err.println("Program failed:");
@@ -98,6 +107,19 @@ public class SkierCreateTable {
                 .withProvisionedThroughput(new ProvisionedThroughput().withReadCapacityUnits(readCapacityUnits)
                     .withWriteCapacityUnits(writeCapacityUnits));
 
+            if (RFID_LIFT_TABLE.equals(tableName)) {
+                attributeDefinitions.add(new AttributeDefinition(DAY_NUM, "N"));
+                GlobalSecondaryIndex globalSecondaryIndex = new GlobalSecondaryIndex()
+                        .withIndexName(SKIER_DAY_NUM_INDEX)
+                        .withKeySchema(new KeySchemaElement(sortKeyName, KeyType.HASH),
+                                new KeySchemaElement(DAY_NUM, KeyType.RANGE))
+                        .withProvisionedThroughput(new ProvisionedThroughput(5L, 500L))
+                        .withProjection(new Projection().withProjectionType(ProjectionType.ALL));
+                List<GlobalSecondaryIndex> globalSecondaryIndexes = new ArrayList<>();
+                globalSecondaryIndexes.add(globalSecondaryIndex);
+                request.setGlobalSecondaryIndexes(globalSecondaryIndexes);
+            }
+            
             request.setAttributeDefinitions(attributeDefinitions);
 
             System.out.println("Issuing CreateTable request for " + tableName);
@@ -106,10 +128,25 @@ public class SkierCreateTable {
             table.waitForActive();
             
             System.out.println("Success");
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             System.err.println("CreateTable request failed for " + tableName);
             System.err.println(e.getMessage());
         }
     }
+    
+//    private void deleteRFIDItems(int dayNum) {
+//        Table table = dynamoDB.getTable(RFID_LIFT_TABLE);
+//        Index index = table.getIndex(DAY_NUM);
+//        
+//        QuerySpec spec = new QuerySpec()
+//                .withKeyConditionExpression("DayNum = :val")
+//                .withValueMap(new ValueMap().withNumber(":val", dayNum));
+//        
+//        ItemCollection<QueryOutcome> items = index.query(spec);
+//        Iterator<Item> iter = items.iterator();
+//        while (iter.hasNext()) {
+//            System.out.println(iter.next().toJSONPretty());
+//        }
+//        
+//    }
 }

@@ -1,12 +1,5 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package edu.neu.zhiyao.assignment2.server.dao;
 
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
@@ -14,13 +7,10 @@ import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBScanExpression;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.model.ResourceNotFoundException;
+import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- * @author allisonjin
- * @param <T>
- */
 public class BaseDao<T> {
 
     private final Class<T> type;
@@ -29,14 +19,13 @@ public class BaseDao<T> {
 
     public BaseDao(Class<T> type) {
         this.type = type;
-        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
-                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-                        "http://localhost:8000", "us-west-1"))
-                .build();
 //        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
-//                .withRegion(Regions.US_WEST_1)
-//                .withCredentials(new ProfileCredentialsProvider("myProfile"))
+//                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+//                        "http://localhost:8000", "us-west-1"))
 //                .build();
+        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
+                .withRegion(Regions.US_WEST_1)
+                .build();
         dynamoDB = new DynamoDB(client);
         mapper = new DynamoDBMapper(client);
     }
@@ -61,7 +50,13 @@ public class BaseDao<T> {
     }
 
     public List<T> find(DynamoDBScanExpression scanExpression) {
-        return mapper.scan(type, scanExpression);
+        List<T> res;
+        try {
+            res = mapper.scan(type, scanExpression);
+        } catch (ResourceNotFoundException ex) {
+            res = new ArrayList<>();
+        }
+        return res;
     }
     
     public void saveOrUpdate(T item) {

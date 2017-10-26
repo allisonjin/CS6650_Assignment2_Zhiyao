@@ -3,15 +3,23 @@ package edu.neu.zhiyao.assignment2.server.service;
 import edu.neu.zhiyao.assignment2.server.dao.SkierDailyStatDao;
 import edu.neu.zhiyao.assignment2.server.entity.RFIDLiftData;
 import edu.neu.zhiyao.assignment2.server.entity.SkierDailyStat;
-import java.util.ArrayList;
 import java.util.List;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import javax.ws.rs.Path;
 
+@Path("SkierDaliyStatService")
+@Singleton
 public class SkierDailyStatService {
     
-    private SkierDailyStatDao dao = new SkierDailyStatDao();
+    @Inject
+    private SkierDailyStatDao dao;
+    
+    @Inject
+    private RFIDLiftService liftService;
     
     public SkierDailyStat getSkierDailyStat(int skierId, int dayNum) {
-        return dao.find(dayNum, dayNum);
+        return dao.find(skierId, dayNum);
     }
     
     public void createNewStats(int dayNum) {
@@ -21,20 +29,15 @@ public class SkierDailyStatService {
         }
     }
     
-    private List<SkierDailyStat> getDailyStats(int dayNum) {
-        RFIDLiftService liftService = new RFIDLiftService();
-        List<SkierDailyStat> stats = new ArrayList<>();
-        for (int i = 1; i <= 40000; i++) {
-            List<RFIDLiftData> dataList = liftService.findRFIDLiftData(i, dayNum);
-            int totalVert = 0, rideNum = 0;
-            for (RFIDLiftData data : dataList) {
-                totalVert += getVertByLiftId(data.getLiftId());
-                rideNum++;
-            }
-            SkierDailyStat stat = new SkierDailyStat(i, dayNum, totalVert, rideNum);
-            stats.add(stat);
+    private SkierDailyStat getDailyStatFromRFID(int skierId, int dayNum) {
+        List<RFIDLiftData> dataList = liftService.findRFIDLiftData(skierId, dayNum);
+        int totalVert = 0, rideNum = 0;
+        for (RFIDLiftData data : dataList) {
+            totalVert += getVertByLiftId(data.getLiftId());
+            rideNum++;
         }
-        return stats;
+        SkierDailyStat stat = new SkierDailyStat(skierId, dayNum, totalVert, rideNum);
+        return stat;
     }
     
     private int getVertByLiftId(int liftId) {
@@ -49,12 +52,9 @@ public class SkierDailyStatService {
         }
     }
     
-    public void updateSkierDailyStats(int dayNum) {
-        updateSkierDailyStats(getDailyStats(dayNum));
-    }
-    
-    private void updateSkierDailyStats(List<SkierDailyStat> stats) {
-        for (SkierDailyStat stat : stats) {
+    public void updateSkierDailyStats(int dayNum, int n) {
+        for (int i = 1; i <= n; i++) {
+            SkierDailyStat stat = getDailyStatFromRFID(i, dayNum);
             dao.saveOrUpdate(stat);
         }
     }

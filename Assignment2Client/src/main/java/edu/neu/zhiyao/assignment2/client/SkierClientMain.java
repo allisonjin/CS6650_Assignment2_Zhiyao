@@ -13,6 +13,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.ws.rs.core.Response;
+import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 
 /**
  *
@@ -27,14 +30,21 @@ import java.util.logging.Logger;
  */
 public class SkierClientMain {
 
+    private static final int BAR_NUM = 100;
+    private static final int SKIER_NUM_EACH_BAR = 400;
+    private static final int GET_CLIENT = 1;
+    private static final int POST_CLIENT = 2;
+    
     private final int nThreads;
     private final int dayNum;
     private final SkierClient client;
+    private final SynchronizedCounter counter;
 
     public SkierClientMain(int nThreads, int dayNum) {
         this.nThreads = nThreads;
         this.dayNum = dayNum;
         client = new SkierClient();
+        counter = new SynchronizedCounter();
     }
 
     private List<RFIDLiftData> readCSV(String fileName) {
@@ -50,11 +60,11 @@ public class SkierClientMain {
             while ((line = bufferedReader.readLine()) != null) {
                 String[] rawData = line.trim().split(",");
                 int resortId = Integer.parseInt(rawData[0]);
-                int dayNum = Integer.parseInt(rawData[1]);
+                int day = Integer.parseInt(rawData[1]);
                 int skierId = Integer.parseInt(rawData[2]);
                 int liftId = Integer.parseInt(rawData[3]);
                 int time = Integer.parseInt(rawData[4]);
-                RFIDLiftData data = new RFIDLiftData(resortId, dayNum,
+                RFIDLiftData data = new RFIDLiftData(resortId, day,
                         skierId, liftId, time);
                 dataList.add(data);
             }
@@ -68,52 +78,132 @@ public class SkierClientMain {
         }
         return dataList;
     }
-
-    private void runTask(Runnable task) {
+    
+    private Map<Long, List<Long>> testPostRequests(final List<RFIDLiftData> rfidLiftDataList) {
         ExecutorService executor = Executors.newFixedThreadPool(nThreads);
-        for (int i = 0; i < nThreads; i++) {
-            executor.execute(task);
+        final long startTime = System.currentTimeMillis();
+        for (int i = 0; i < 0; i++) {
+            final int index = i;
+            final RFIDLiftData data = rfidLiftDataList.get(i);
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    long reqStartTime = System.currentTimeMillis();
+                    try {
+                        Response resp = client.postRFIDLiftData(data);
+                        System.out.println(resp.getStatus());
+                    } catch (Exception ex) {
+                        System.out.println(ex.getMessage());
+                    }
+                    long reqEndTime = System.currentTimeMillis();
+                    long latency = elapsedTime(reqStartTime, reqEndTime);
+                    System.out.println("Index " + index + " latency " + latency);
+                    counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
+                }
+            });
         }
         executor.shutdown();
         while (!executor.isTerminated());
+        try {
+            System.out.println("EOF");
+            Response resp = client.postEndOfData(dayNum);
+            System.out.println(resp.getStatus());
+        } catch (Exception ex) {
+            System.out.println(ex.getMessage());
+        }
+        return counter.getLatencyTimestamp();
     }
-
-    private Map<Long, List<Double>> runPostTask(final List<RFIDLiftData> rfidLiftDataList) {
-        final SynchronizedCounter counter = new SynchronizedCounter();
+    
+    private Map<Long, List<Long>> testGetRequests() {
+        ExecutorService executor = Executors.newFixedThreadPool(BAR_NUM);
         final long startTime = System.currentTimeMillis();
-        runTask(new Runnable() {
-            @Override
-            public void run() {
-                int index;
-                while ((index = counter.reqIncrement()) < 10000) {
-                    RFIDLiftData data = rfidLiftDataList.get(index);
-                    long reqStartTime = System.currentTimeMillis();
-                    client.postRFIDLiftData(data);
-                    long reqEndTime = System.currentTimeMillis();
-                    double latency = elapsedTime(reqStartTime, reqEndTime);
-                    counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
+        for (int i = 1; i <= BAR_NUM; i++) {
+            final int index = i;
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (int j = 1; j <= SKIER_NUM_EACH_BAR; j++) {
+                        int skierId = SKIER_NUM_EACH_BAR * (index - 1) + j;
+                        long reqStartTime = System.currentTimeMillis();
+                        SkierDailyStat stat = client.getSkierDailyStat(skierId, dayNum);
+                        long reqEndTime = System.currentTimeMillis();
+                        counter.reqIncrement();
+                        if (stat != null && skierId == stat.getSkierId()) {
+                            counter.respIncrement();
+                        }
+                        long latency = elapsedTime(reqStartTime, reqEndTime);
+                        counter.addLatency(latency);
+                        counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
+                        System.out.println("Index " + skierId + " latency " + latency);
+                    }
                 }
-            }
-        });
-        client.postEndOfData(dayNum);
+            });
+        }
+        executor.shutdown();
+        while (!executor.isTerminated());
+        
+        long endTime = System.currentTimeMillis();
+        long wallTime = elapsedTime(startTime, endTime);
+        System.out.println("All threads complete... Time: " + endTime);
+        System.out.println("Total number of requests sent: "
+                + counter.getRespCnt());
+        System.out.println("Total number of successful responses: "
+                + counter.getRespCnt());
+        System.out.format("Test wall time: %d ms\n", wallTime);
+        
+        processLatencies(counter.getLatencies());
+        
         return counter.getLatencyTimestamp();
     }
 
-    private double elapsedTime(long startTime, long endTime) {
-        return (endTime - startTime) / 1000.0;
+    private static long elapsedTime(long startTime, long endTime) {
+        return endTime - startTime;
     }
 
-    private void outputCSV(Map<Long, List<Double>> latencyTimestamp,
+    private void processLatencies(List<Long> latencyList) {
+        double[] latencies = new double[latencyList.size()];
+        for (int i = 0; i < latencyList.size(); i++) {
+            latencies[i] = (double)latencyList.get(i);
+        }
+        System.out.format("Mean lantency: %.1f ms\n", mean(latencies));
+        System.out.format("Median latency: %.1f ms\n", median(latencies));
+        System.out.format("99th percentile latency: %.1f ms\n", 
+                percentile(latencies, 99));
+        System.out.format("95th percentile latency: %.1f ms\n", 
+                percentile(latencies, 95));
+    }
+    
+    private double mean(double[] values) {
+        double ans = 0;
+        for (double v : values) {
+            ans += v;
+        }
+        return ans / values.length;
+    }
+    
+    private double median(double[] values) {
+        int n = values.length;
+        int mid = (n - 1) / 2;
+        return n % 2 == 0 ? (values[mid] - values[mid + 1]) / 2 + values[mid + 1] :
+                values[mid];
+    }
+    
+    private double percentile(double[] values, double percentile) {
+        Percentile p = new Percentile();
+        return p.evaluate(values, percentile);
+    }
+    
+    private void outputCSV(Map<Long, List<Long>> latencyTimestamp,
             String outputFilerName) {
         FileWriter writer;
         try {
-            long time = System.currentTimeMillis();
-            writer = new FileWriter(time + outputFilerName);
+            writer = new FileWriter(outputFilerName);
+            System.out.println("Writing csv...");
             writer.write("Time,Latency\n");
-            for (Map.Entry<Long, List<Double>> e : latencyTimestamp.entrySet()) {
+            for (Map.Entry<Long, List<Long>> e : latencyTimestamp.entrySet()) {
                 Long timestamp = e.getKey();
-                List<Double> latencies = e.getValue();
-                for (Double latency : latencies) {
+                List<Long> latencies = e.getValue();
+                for (Long latency : latencies) {
                     writer.append(timestamp + "," + latency + "\n");
                 }
             }
@@ -124,21 +214,36 @@ public class SkierClientMain {
     }
     
     public static void main(String[] args) {
-        int nThreads = 1;
+        int nThreads = 100;
         int dayNum = 1;
+        int clientType = GET_CLIENT;
         if (args.length != 0) {
             try {
-                nThreads = Integer.parseInt(args[0]);
-                dayNum = Integer.parseInt(args[1]);
+//                nThreads = Integer.parseInt(args[0]);
+//                dayNum = Integer.parseInt(args[1]);
+                dayNum = Integer.parseInt(args[0]);
+                clientType = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input!");
             }
         }
+//        System.out.println(LocalTime.now());
         SkierClientMain instance = new SkierClientMain(nThreads, dayNum);
-        String csvFileName = "BSDSAssignment2Day1.csv";
-        List<RFIDLiftData> dataList = instance.readCSV(csvFileName);
-        Map<Long, List<Double>> latencyTimestamp = instance.runPostTask(dataList);
-        instance.outputCSV(latencyTimestamp, "latencies.csv");
+        long allStartTime = System.currentTimeMillis();
+        Map<Long, List<Long>> latencyTimestamp;
+        if (clientType == GET_CLIENT) {
+            latencyTimestamp = instance.testGetRequests();
+        } else {
+            String csvFileName = "BSDSAssignment2Day1.csv";
+            if (dayNum == 2) {
+                csvFileName = "BSDSAssignment2Day2.csv";
+            }
+            List<RFIDLiftData> dataList = instance.readCSV(csvFileName);
+            latencyTimestamp = instance.testPostRequests(dataList);
+        }
+        long allEndTime = System.currentTimeMillis();
+        long wallTime = elapsedTime(allStartTime, allEndTime);
+        instance.outputCSV(latencyTimestamp, clientType + wallTime + ".csv");
     }
 
 }

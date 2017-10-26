@@ -31,6 +31,10 @@ public class ApplicationConfig extends Application {
     private void addRestResourceClasses(Set<Class<?>> resources) {
         resources.add(edu.neu.zhiyao.assignment2.server.controller.RFIDLiftController.class);
         resources.add(edu.neu.zhiyao.assignment2.server.controller.SkierDailyStatController.class);
+        resources.add(edu.neu.zhiyao.assignment2.server.dao.RFIDLiftDao.class);
+        resources.add(edu.neu.zhiyao.assignment2.server.dao.SkierDailyStatDao.class);
+        resources.add(edu.neu.zhiyao.assignment2.server.service.RFIDLiftService.class);
+        resources.add(edu.neu.zhiyao.assignment2.server.service.SkierDailyStatService.class);
         resources.add(org.glassfish.jersey.server.wadl.internal.WadlResource.class);
     }
     

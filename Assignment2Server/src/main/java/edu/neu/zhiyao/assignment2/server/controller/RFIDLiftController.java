@@ -4,9 +4,11 @@ package edu.neu.zhiyao.assignment2.server.controller;
 import edu.neu.zhiyao.assignment2.server.entity.RFIDLiftData;
 import edu.neu.zhiyao.assignment2.server.service.RFIDLiftService;
 import edu.neu.zhiyao.assignment2.server.service.SkierDailyStatService;
+import javax.inject.Inject;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -18,21 +20,22 @@ public class RFIDLiftController {
     @Context
     UriInfo uriInfo;
     
-    private RFIDLiftService service = new RFIDLiftService();
+    @Inject
+    private RFIDLiftService rfidLiftService;
+    
+    @Inject
+    private SkierDailyStatService statService;
     
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.TEXT_PLAIN)
     public Response postRFIDLiftData(RFIDLiftData data) {
-        String result;
         if (data.getId() == null) {
-            service.saveOrUpdate(data);
-            result = "RFID lift data saved: " + data;
+            rfidLiftService.saveOrUpdate(data);
         } else {
-            SkierDailyStatService statService = new SkierDailyStatService();
-            statService.updateSkierDailyStats(data.getDayNum());
-            result = "Daily data all saved!";
+            statService.updateSkierDailyStats(data.getDayNum(), data.getSkierId());
         }
-        return Response.status(201).entity(result).build();
+        return Response.status(200).build();
     }
     
 }

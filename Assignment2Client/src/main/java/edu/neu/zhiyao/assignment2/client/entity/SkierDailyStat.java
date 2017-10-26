@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package edu.neu.zhiyao.assignment2.client.entity;
 
 public class SkierDailyStat {
@@ -47,11 +42,11 @@ public class SkierDailyStat {
         this.totalVert = totalVert;
     }
 
-    public int getLiftNum() {
+    public int getRidNum() {
         return rideNum;
     }
 
-    public void setLiftNum(int rideNum) {
+    public void setRideNum(int rideNum) {
         this.rideNum = rideNum;
     }
     
