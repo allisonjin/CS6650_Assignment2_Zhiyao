@@ -1,4 +1,3 @@
-
 package edu.neu.zhiyao.assignment2.server.controller;
 
 import edu.neu.zhiyao.assignment2.server.entity.RFIDLiftData;

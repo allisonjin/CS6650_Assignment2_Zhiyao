@@ -9,7 +9,16 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
+import com.amazonaws.services.dynamodbv2.document.Index;
+import com.amazonaws.services.dynamodbv2.document.Item;
+import com.amazonaws.services.dynamodbv2.document.ItemCollection;
+import com.amazonaws.services.dynamodbv2.document.PrimaryKey;
+import com.amazonaws.services.dynamodbv2.document.QueryOutcome;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.TableWriteItems;
+import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
+import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
+import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndex;
@@ -19,6 +28,7 @@ import com.amazonaws.services.dynamodbv2.model.Projection;
 import com.amazonaws.services.dynamodbv2.model.ProjectionType;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -46,15 +56,13 @@ public class ResetTable {
     public static void main(String[] args) {
         
         try {
-//            deleteTable(RFID_LIFT_TABLE);
-//            deleteTable(SKIER_DAILY_STAT_TABLE);
+            deleteTable(RFID_LIFT_TABLE);
+            deleteTable(SKIER_DAILY_STAT_TABLE);
             
-//            createTable(RFID_LIFT_TABLE, 5L, 5L, RFID_LIFT_ID, "S", SKIER_ID, "N");
-//            createTable(SKIER_DAILY_STAT_TABLE, 5L, 5L, SKIER_ID, "N", DAY_NUM, "N");
+            createTable(RFID_LIFT_TABLE, 5L, 5L, RFID_LIFT_ID, "S", SKIER_ID, "N");
+            createTable(SKIER_DAILY_STAT_TABLE, 5L, 5L, SKIER_ID, "N", DAY_NUM, "N");
             
-//            SkierDailyStatService service = new SkierDailyStatService();
-//            service.createNewStats(1);
-//            createTable("test", 5L, 5L, "pk", "S");
+//            deleteRFIDItems(2);
             
         } catch (Exception e) {
             System.err.println("Program failed:");
@@ -127,26 +135,38 @@ public class ResetTable {
             System.out.println("Waiting for " + tableName + " to be created...this may take a while...");
             table.waitForActive();
             
-            System.out.println("Success");
+            System.out.println("CreateTable done!");
         } catch (Exception e) {
             System.err.println("CreateTable request failed for " + tableName);
             System.err.println(e.getMessage());
         }
     }
     
-//    private void deleteRFIDItems(int dayNum) {
-//        Table table = dynamoDB.getTable(RFID_LIFT_TABLE);
-//        Index index = table.getIndex(DAY_NUM);
-//        
-//        QuerySpec spec = new QuerySpec()
-//                .withKeyConditionExpression("DayNum = :val")
-//                .withValueMap(new ValueMap().withNumber(":val", dayNum));
-//        
-//        ItemCollection<QueryOutcome> items = index.query(spec);
-//        Iterator<Item> iter = items.iterator();
-//        while (iter.hasNext()) {
-//            System.out.println(iter.next().toJSONPretty());
-//        }
-//        
-//    }
+    private static void deleteRFIDItems(int dayNum) {
+        System.out.println("Deleting...");
+        Table table = dynamoDB.getTable(RFID_LIFT_TABLE);
+        Index index = table.getIndex(SKIER_DAY_NUM_INDEX);
+        
+        for (int i = 1; i <= 40000; i++) {
+            try {
+                QuerySpec spec = new QuerySpec()
+                        .withKeyConditionExpression("SkierId = :val1 and DayNum = :val2")
+                        .withValueMap(new ValueMap().withNumber(":val1", i).withNumber(":val2", dayNum));
+
+                ItemCollection<QueryOutcome> items = index.query(spec);
+                Iterator<Item> iter = items.iterator();
+                while (iter.hasNext()) {
+                    String id = iter.next().getString("Id");
+                    DeleteItemSpec deleteItemSpec = new DeleteItemSpec()
+                        .withPrimaryKey(new PrimaryKey("Id", id, "SkierId", i));
+                    table.deleteItem(deleteItemSpec);
+                }
+            } catch (Exception ex) {
+                System.out.println(ex.getMessage());
+            }
+        } 
+        
+        System.out.println("Delete done!");
+        
+    }
 }

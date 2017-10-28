@@ -5,10 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- * @author allisonjin
- */
 public class SynchronizedCounter {
     private int reqCnt = 0;
     private int respCnt = 0;

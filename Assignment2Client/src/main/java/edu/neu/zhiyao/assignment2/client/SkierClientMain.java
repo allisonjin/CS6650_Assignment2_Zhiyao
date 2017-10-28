@@ -6,14 +6,12 @@
 package edu.neu.zhiyao.assignment2.client;
 
 import edu.neu.zhiyao.assignment2.client.entity.RFIDLiftData;
-import edu.neu.zhiyao.assignment2.client.entity.SkierDailyStat;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +80,8 @@ public class SkierClientMain {
     private Map<Long, List<Long>> testPostRequests(final List<RFIDLiftData> rfidLiftDataList) {
         ExecutorService executor = Executors.newFixedThreadPool(nThreads);
         final long startTime = System.currentTimeMillis();
-        for (int i = 0; i < 0; i++) {
+        System.out.println("Post Client starting... Time: " + startTime);
+        for (int i = 0; i < rfidLiftDataList.size(); i++) {
             final int index = i;
             final RFIDLiftData data = rfidLiftDataList.get(i);
             executor.execute(new Runnable() {
@@ -91,32 +90,38 @@ public class SkierClientMain {
                     long reqStartTime = System.currentTimeMillis();
                     try {
                         Response resp = client.postRFIDLiftData(data);
-                        System.out.println(resp.getStatus());
                     } catch (Exception ex) {
                         System.out.println(ex.getMessage());
                     }
                     long reqEndTime = System.currentTimeMillis();
                     long latency = elapsedTime(reqStartTime, reqEndTime);
-                    System.out.println("Index " + index + " latency " + latency);
+                    counter.addLatency(latency);
                     counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
                 }
             });
         }
+        
         executor.shutdown();
         while (!executor.isTerminated());
         try {
             System.out.println("EOF");
-            Response resp = client.postEndOfData(dayNum);
-            System.out.println(resp.getStatus());
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
         }
+        
+        long endTime = System.currentTimeMillis();
+        long wallTime = elapsedTime(startTime, endTime);
+        System.out.println("All threads complete... Time: " + endTime);
+        
+        printStats(wallTime);
+        
         return counter.getLatencyTimestamp();
     }
     
     private Map<Long, List<Long>> testGetRequests() {
         ExecutorService executor = Executors.newFixedThreadPool(BAR_NUM);
         final long startTime = System.currentTimeMillis();
+        System.out.println("Get Client starting... Time: " + startTime);
         for (int i = 1; i <= BAR_NUM; i++) {
             final int index = i;
             executor.execute(new Runnable() {
@@ -125,26 +130,46 @@ public class SkierClientMain {
                     for (int j = 1; j <= SKIER_NUM_EACH_BAR; j++) {
                         int skierId = SKIER_NUM_EACH_BAR * (index - 1) + j;
                         long reqStartTime = System.currentTimeMillis();
-                        SkierDailyStat stat = client.getSkierDailyStat(skierId, dayNum);
+                        Response resp = null;
+                        try {
+                            resp = client.getSkierDailyStat(skierId, dayNum);
+                        } catch (Exception ex) {
+                            System.out.println(ex.getMessage());
+                        }
                         long reqEndTime = System.currentTimeMillis();
                         counter.reqIncrement();
-                        if (stat != null && skierId == stat.getSkierId()) {
+                        if (resp != null && resp.getStatus() == 200) {
                             counter.respIncrement();
+                            Integer[] res = resp.readEntity(Integer[].class);
+                            System.out.println(skierId + ": " + res[0] + " " + res[1]);
                         }
+                        
                         long latency = elapsedTime(reqStartTime, reqEndTime);
                         counter.addLatency(latency);
                         counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
-                        System.out.println("Index " + skierId + " latency " + latency);
                     }
                 }
             });
         }
+        System.out.println("All threads running...");
+        
         executor.shutdown();
         while (!executor.isTerminated());
         
         long endTime = System.currentTimeMillis();
         long wallTime = elapsedTime(startTime, endTime);
         System.out.println("All threads complete... Time: " + endTime);
+        
+        printStats(wallTime);
+        
+        return counter.getLatencyTimestamp();
+    }
+
+    private static long elapsedTime(long startTime, long endTime) {
+        return endTime - startTime;
+    }
+    
+    private void printStats(long wallTime) {
         System.out.println("Total number of requests sent: "
                 + counter.getRespCnt());
         System.out.println("Total number of successful responses: "
@@ -152,12 +177,6 @@ public class SkierClientMain {
         System.out.format("Test wall time: %d ms\n", wallTime);
         
         processLatencies(counter.getLatencies());
-        
-        return counter.getLatencyTimestamp();
-    }
-
-    private static long elapsedTime(long startTime, long endTime) {
-        return endTime - startTime;
     }
 
     private void processLatencies(List<Long> latencyList) {
@@ -215,19 +234,16 @@ public class SkierClientMain {
     
     public static void main(String[] args) {
         int nThreads = 100;
-        int dayNum = 1;
-        int clientType = GET_CLIENT;
+        int dayNum = 2;
+        int clientType = POST_CLIENT;
         if (args.length != 0) {
             try {
-//                nThreads = Integer.parseInt(args[0]);
-//                dayNum = Integer.parseInt(args[1]);
                 dayNum = Integer.parseInt(args[0]);
                 clientType = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
                 System.out.println("Invalid input!");
             }
         }
-//        System.out.println(LocalTime.now());
         SkierClientMain instance = new SkierClientMain(nThreads, dayNum);
         long allStartTime = System.currentTimeMillis();
         Map<Long, List<Long>> latencyTimestamp;

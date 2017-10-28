@@ -1,7 +1,6 @@
 package edu.neu.zhiyao.assignment2.client;
 
 import edu.neu.zhiyao.assignment2.client.entity.RFIDLiftData;
-import edu.neu.zhiyao.assignment2.client.entity.SkierDailyStat;
 import javax.ws.rs.ClientErrorException;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
@@ -19,28 +18,22 @@ public class SkierClient {
     private final WebTarget webTarget;
     private final Client client;
     private static final String BASE_URI = 
-            "http://54.67.95.209:8081/Assignment2Server/webresources";
+            "http://13.56.194.84:8080/Assignment2Server/webresources";
 //    private static final String BASE_URI = "http://localhost:8081/Assignment2Server/webresources";
 
     public SkierClient() {
         client = ClientBuilder.newClient();
-//        client.property(ClientProperties.CONNECT_TIMEOUT, 30000)
-//              .property(ClientProperties.READ_TIMEOUT, 30000);
+        client.property(ClientProperties.CONNECT_TIMEOUT, 30000)
+              .property(ClientProperties.READ_TIMEOUT, 30000);
         webTarget = client.target(BASE_URI);
     }
 
-    public SkierDailyStat getSkierDailyStat(int skierId, int dayNum) throws ClientErrorException {
-        Response resp = webTarget.path(java.text.MessageFormat.format("myvert/{0}/{1}", 
-                                new Object[]{skierId, dayNum}))
+    public Response getSkierDailyStat(int skierId, int dayNum) throws ClientErrorException {
+        return webTarget.path(java.text.MessageFormat.format("myvert/{0}/{1}", 
+                                new Object[]{String.valueOf(skierId), String.valueOf(dayNum)}))
                         .request()
                         .accept(MediaType.APPLICATION_JSON)
                         .get();
-        SkierDailyStat stat = null;
-        if (resp.getStatus() == 200) {
-            Integer[] res = resp.readEntity(Integer[].class);
-            stat = new SkierDailyStat(skierId, dayNum, res[0], res[1]);
-        }
-        return stat;
     }
 
     public Response postRFIDLiftData(RFIDLiftData data) throws Exception {
