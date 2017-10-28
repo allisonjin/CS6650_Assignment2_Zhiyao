@@ -259,7 +259,7 @@ public class SkierClientMain {
         }
         long allEndTime = System.currentTimeMillis();
         long wallTime = elapsedTime(allStartTime, allEndTime);
-        instance.outputCSV(latencyTimestamp, clientType + wallTime + ".csv");
+        instance.outputCSV(latencyTimestamp, clientType + "-" + wallTime + ".csv");
     }
 
 }
