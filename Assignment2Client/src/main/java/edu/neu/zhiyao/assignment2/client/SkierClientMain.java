@@ -81,20 +81,26 @@ public class SkierClientMain {
         ExecutorService executor = Executors.newFixedThreadPool(nThreads);
         final long startTime = System.currentTimeMillis();
         System.out.println("Post Client starting... Time: " + startTime);
-        for (int i = 0; i < rfidLiftDataList.size(); i++) {
+        for (int i = 0; i < 0; i++) {
             final int index = i;
             final RFIDLiftData data = rfidLiftDataList.get(i);
             executor.execute(new Runnable() {
                 @Override
                 public void run() {
+                    Response resp = null;
                     long reqStartTime = System.currentTimeMillis();
                     try {
-                        Response resp = client.postRFIDLiftData(data);
+                        counter.reqIncrement();
+                        resp = client.postRFIDLiftData(data);
                     } catch (Exception ex) {
                         System.out.println(ex.getMessage());
                     }
                     long reqEndTime = System.currentTimeMillis();
                     long latency = elapsedTime(reqStartTime, reqEndTime);
+//                    System.out.println(index + ": " + latency);
+                    if (resp != null && resp.getStatus() == 200) {
+                        counter.respIncrement();
+                    }
                     counter.addLatency(latency);
                     counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
                 }
@@ -104,6 +110,7 @@ public class SkierClientMain {
         executor.shutdown();
         while (!executor.isTerminated());
         try {
+            client.postEndOfData(dayNum);
             System.out.println("EOF");
         } catch (Exception ex) {
             System.out.println(ex.getMessage());
@@ -132,19 +139,19 @@ public class SkierClientMain {
                         long reqStartTime = System.currentTimeMillis();
                         Response resp = null;
                         try {
+                            counter.reqIncrement();
                             resp = client.getSkierDailyStat(skierId, dayNum);
                         } catch (Exception ex) {
                             System.out.println(ex.getMessage());
                         }
                         long reqEndTime = System.currentTimeMillis();
-                        counter.reqIncrement();
+                        long latency = elapsedTime(reqStartTime, reqEndTime);
+//                        System.out.println(skierId + ": " + latency);
                         if (resp != null && resp.getStatus() == 200) {
                             counter.respIncrement();
-                            Integer[] res = resp.readEntity(Integer[].class);
-                            System.out.println(skierId + ": " + res[0] + " " + res[1]);
+//                            Integer[] res = resp.readEntity(Integer[].class);
+//                            System.out.println(skierId + ": " + res[0] + " " + res[1]);
                         }
-                        
-                        long latency = elapsedTime(reqStartTime, reqEndTime);
                         counter.addLatency(latency);
                         counter.addLatencyAndTimestamp(reqStartTime - startTime, latency);
                     }
@@ -250,10 +257,7 @@ public class SkierClientMain {
         if (clientType == GET_CLIENT) {
             latencyTimestamp = instance.testGetRequests();
         } else {
-            String csvFileName = "BSDSAssignment2Day1.csv";
-            if (dayNum == 2) {
-                csvFileName = "BSDSAssignment2Day2.csv";
-            }
+            String csvFileName = "BSDSAssignment2Day" + dayNum + ".csv";
             List<RFIDLiftData> dataList = instance.readCSV(csvFileName);
             latencyTimestamp = instance.testPostRequests(dataList);
         }
