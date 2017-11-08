@@ -81,7 +81,7 @@ public class SkierClientMain {
         ExecutorService executor = Executors.newFixedThreadPool(nThreads);
         final long startTime = System.currentTimeMillis();
         System.out.println("Post Client starting... Time: " + startTime);
-        for (int i = 0; i < 0; i++) {
+        for (int i = 0; i < rfidLiftDataList.size(); i++) {
             final int index = i;
             final RFIDLiftData data = rfidLiftDataList.get(i);
             executor.execute(new Runnable() {
@@ -241,7 +241,7 @@ public class SkierClientMain {
     
     public static void main(String[] args) {
         int nThreads = 100;
-        int dayNum = 2;
+        int dayNum = 999;
         int clientType = POST_CLIENT;
         if (args.length != 0) {
             try {
